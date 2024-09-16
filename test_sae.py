@@ -3,7 +3,7 @@ from functools import partial
 
 import orjson
 import torch
-from safetensors import safe_open  # New import for safetensors
+from safetensors.torch import load_file  # Using safetensors for PyTorch
 from simple_parsing import ArgumentParser
 
 from sae_auto_interp.clients import Local
@@ -17,19 +17,16 @@ from sae_auto_interp.utils import (
     load_tokenizer,
 )
 
-
 raw_features = "raw_features/gpt2"
 explanation_dir = "results/gpt2_explanations"
 fuzz_dir = "results/gpt2_fuzz"
 
-
-autoencoder_weights_path = "sae.safetensors"
+autoencoder_weights_path = "path/to/your/sae.safetensors"  # Ensure the path is correct
 
 
 class SparseAutoencoder(torch.nn.Module):
     def __init__(self):
         super(SparseAutoencoder, self).__init__()
-        
 
         self.encoder = torch.nn.Sequential(
             torch.nn.Linear(768, 512),  # Adjust the input size and layers
@@ -49,20 +46,16 @@ class SparseAutoencoder(torch.nn.Module):
         )
     
     def forward(self, x):
-        # Forward pass through the encoder
         encoded = self.encoder(x)
-        # Forward pass through the decoder
         decoded = self.decoder(encoded)
         return decoded
 
 autoencoder = SparseAutoencoder()
 
+# Use safetensors to load the weights
 def load_safetensors_weights(model, filepath):
-    with safe_open(filepath, framework="pt", device="cpu") as f:
-        for key in f.keys():
-            tensor = f.get_tensor(key)
-            if key in model.state_dict():
-                model.state_dict()[key].copy_(tensor)
+    state_dict = load_file(filepath)
+    model.load_state_dict(state_dict)
 
 load_safetensors_weights(autoencoder, autoencoder_weights_path)
 
@@ -70,7 +63,6 @@ load_safetensors_weights(autoencoder, autoencoder_weights_path)
 autoencoder.eval()
 
 def main(args):
-
     ### Load tokens ###
     tokenizer = load_tokenizer("gpt2")
     tokens = load_tokenized_data(
@@ -81,7 +73,6 @@ def main(args):
     )
 
     modules = [f".transformer.h.{i}" for i in range(0, 12, 2)]
-
     features = {mod: torch.arange(50) for mod in modules}
 
     dataset = FeatureDataset(
@@ -101,29 +92,23 @@ def main(args):
 
     client = Local("casperhansen/llama-3-70b-instruct-awq")
 
-    
     def preprocess(record):
         test = []
         extra_examples = []
-
         for examples in record.test:
             test.append(examples[:5])
             extra_examples.extend(examples[5:])
-
         record.test = test
         record.extra_examples = extra_examples
-
         return record
 
     def explainer_postprocess(result):
         with open(f"{explanation_dir}/{result.record.feature}.txt", "wb") as f:
             f.write(orjson.dumps(result.explanation))
-
         return result
 
     def apply_autoencoder(features):
-
-        with torch.no_grad():  # Ensure no gradients are computed
+        with torch.no_grad():
             encoded_features = autoencoder(features)
         return encoded_features
 
@@ -135,12 +120,11 @@ def main(args):
             max_tokens=500,
             temperature=0.0,
         ),
-        preprocess=lambda record: apply_autoencoder(preprocess(record)),  # Apply autoencoder to the data
+        preprocess=lambda record: apply_autoencoder(preprocess(record)),
         postprocess=explainer_postprocess,
     )
 
     ### Build Scorer pipe ###
-    
     def scorer_preprocess(result):
         record = result.record
         record.explanation = result.explanation
@@ -165,22 +149,12 @@ def main(args):
         ),
     )
 
-    ### Build the pipeline ###
-    
-    pipeline = Pipeline(
-        loader,
-        explainer_pipe,
-        scorer_pipe,
-    )
-
+    pipeline = Pipeline(loader, explainer_pipe, scorer_pipe)
     asyncio.run(pipeline.run(max_processes=5))
-
 
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_arguments(FeatureConfig, dest="feature")
     parser.add_arguments(ExperimentConfig, dest="experiment")
-
     args = parser.parse_args()
-
     main(args)
