@@ -3,7 +3,7 @@ from functools import partial
 
 import orjson
 import torch
-from safetensors.torch import load_file  # Using safetensors for PyTorch
+from safetensors.torch import load_file  # Import for safetensors with PyTorch
 from simple_parsing import ArgumentParser
 
 from sae_auto_interp.clients import Local
@@ -17,25 +17,29 @@ from sae_auto_interp.utils import (
     load_tokenizer,
 )
 
+### Set directories ###
 raw_features = "raw_features/gpt2"
 explanation_dir = "results/gpt2_explanations"
 fuzz_dir = "results/gpt2_fuzz"
 
-autoencoder_weights_path = "sae.safetensors"  # Ensure the path is correct
+autoencoder_weights_path = "path/to/your/sae.safetensors"  # Make sure this is correct
 
 
+### Define the SparseAutoencoder Model ###
 class SparseAutoencoder(torch.nn.Module):
     def __init__(self):
         super(SparseAutoencoder, self).__init__()
 
+        # Encoder definition
         self.encoder = torch.nn.Sequential(
-            torch.nn.Linear(768, 512),  # Adjust the input size and layers
+            torch.nn.Linear(768, 512),  # Input size and layers
             torch.nn.ReLU(),
             torch.nn.Linear(512, 256),
             torch.nn.ReLU(),
             torch.nn.Linear(256, 128)   # Latent space
         )
         
+        # Decoder definition
         self.decoder = torch.nn.Sequential(
             torch.nn.Linear(128, 256),
             torch.nn.ReLU(),
@@ -46,23 +50,45 @@ class SparseAutoencoder(torch.nn.Module):
         )
     
     def forward(self, x):
+        # Forward pass through encoder and decoder
         encoded = self.encoder(x)
         decoded = self.decoder(encoded)
         return decoded
 
+# Initialize the autoencoder model
 autoencoder = SparseAutoencoder()
 
-# Use safetensors to load the weights
+### Load Weights from Safetensors and Map Keys ###
 def load_safetensors_weights(model, filepath):
     state_dict = load_file(filepath)
-    model.load_state_dict(state_dict)
+    
+    # Create a new state_dict with renamed keys for the model
+    new_state_dict = {}
+    for key in state_dict.keys():
+        # Mapping safetensors keys to model's expected keys
+        if key == "encoder.weight":
+            new_state_dict["encoder.0.weight"] = state_dict[key]
+        elif key == "encoder.bias":
+            new_state_dict["encoder.0.bias"] = state_dict[key]
+        elif key == "W_dec":
+            new_state_dict["decoder.0.weight"] = state_dict[key]
+        elif key == "b_dec":
+            new_state_dict["decoder.0.bias"] = state_dict[key]
+        else:
+            new_state_dict[key] = state_dict[key]
+    
+    # Load the renamed state_dict into the model
+    model.load_state_dict(new_state_dict)
 
+# Load the weights into the autoencoder model
 load_safetensors_weights(autoencoder, autoencoder_weights_path)
 
-# Put the model into evaluation mode if it's not being trained
+# Set the model to evaluation mode
 autoencoder.eval()
 
+### Main Function to Run the Pipeline ###
 def main(args):
+
     ### Load tokens ###
     tokenizer = load_tokenizer("gpt2")
     tokens = load_tokenized_data(
@@ -92,6 +118,8 @@ def main(args):
 
     client = Local("casperhansen/llama-3-70b-instruct-awq")
 
+    ### Build the Explainer Pipe ###
+    
     def preprocess(record):
         test = []
         extra_examples = []
@@ -124,7 +152,8 @@ def main(args):
         postprocess=explainer_postprocess,
     )
 
-    ### Build Scorer pipe ###
+    ### Build the Scorer Pipe ###
+    
     def scorer_preprocess(result):
         record = result.record
         record.explanation = result.explanation
@@ -149,6 +178,7 @@ def main(args):
         ),
     )
 
+    ### Build and Run the Pipeline ###
     pipeline = Pipeline(loader, explainer_pipe, scorer_pipe)
     asyncio.run(pipeline.run(max_processes=5))
 
