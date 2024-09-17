@@ -22,7 +22,7 @@ raw_features = "raw_features/gpt2"
 explanation_dir = "results/gpt2_explanations"
 fuzz_dir = "results/gpt2_fuzz"
 
-autoencoder_weights_path = "path/to/your/sae.safetensors"  # Make sure this is correct
+autoencoder_weights_path = "sae.safetensors"  # Make sure this is correct
 
 
 ### Define the SparseAutoencoder Model ###
