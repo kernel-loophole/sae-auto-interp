@@ -30,30 +30,30 @@ class SparseAutoencoder(torch.nn.Module):
     def __init__(self):
         super(SparseAutoencoder, self).__init__()
 
-        # Encoder definition
+        # Adjusted Encoder dimensions based on the error message
         self.encoder = torch.nn.Sequential(
-            torch.nn.Linear(768, 512),  # Input size and layers
+            torch.nn.Linear(1024, 32768),  # Adjust the input size and layers
             torch.nn.ReLU(),
-            torch.nn.Linear(512, 256),
+            torch.nn.Linear(32768, 32768),
             torch.nn.ReLU(),
-            torch.nn.Linear(256, 128)   # Latent space
+            torch.nn.Linear(32768, 32768)   # Latent space based on saved model
         )
         
-        # Decoder definition
+        # Adjusted Decoder dimensions based on the error message
         self.decoder = torch.nn.Sequential(
-            torch.nn.Linear(128, 256),
+            torch.nn.Linear(32768, 32768),
             torch.nn.ReLU(),
-            torch.nn.Linear(256, 512),
+            torch.nn.Linear(32768, 32768),
             torch.nn.ReLU(),
-            torch.nn.Linear(512, 768),  
+            torch.nn.Linear(32768, 1024),  
             torch.nn.Sigmoid()          
         )
     
     def forward(self, x):
-        # Forward pass through encoder and decoder
         encoded = self.encoder(x)
         decoded = self.decoder(encoded)
         return decoded
+
 
 # Initialize the autoencoder model
 autoencoder = SparseAutoencoder()
