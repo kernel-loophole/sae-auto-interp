@@ -39,13 +39,11 @@ class SparseAutoencoder(torch.nn.Module):
             torch.nn.Linear(32768, 32768)   # Latent space based on saved model
         )
         
-        # Adjusted Decoder dimensions based on the error message
+        # Adjusted Decoder dimensions to match the weight sizes in the checkpoint
         self.decoder = torch.nn.Sequential(
-            torch.nn.Linear(32768, 32768),
+            torch.nn.Linear(32768, 1024),  # Match the size from the saved checkpoint
             torch.nn.ReLU(),
-            torch.nn.Linear(32768, 32768),
-            torch.nn.ReLU(),
-            torch.nn.Linear(32768, 1024),  
+            torch.nn.Linear(1024, 1024),  
             torch.nn.Sigmoid()          
         )
     
@@ -79,7 +77,8 @@ def load_safetensors_weights(model, filepath):
     
     # Load the renamed state_dict into the model, using strict=False to avoid issues with missing/unexpected keys
     missing, unexpected = model.load_state_dict(new_state_dict, strict=False)
-    print(f"Missing keys: {missing}, Unexpected keys: {unexpected}")
+    print(f"Missing keys: {missing}")
+    print(f"Unexpected keys: {unexpected}")
 
 # Load the weights into the autoencoder model
 load_safetensors_weights(autoencoder, autoencoder_weights_path)
@@ -183,11 +182,9 @@ def main(args):
     pipeline = Pipeline(loader, explainer_pipe, scorer_pipe)
     asyncio.run(pipeline.run(max_processes=5))
 
-
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_arguments(FeatureConfig, dest="feature")
     parser.add_arguments(ExperimentConfig, dest="experiment")
     args = parser.parse_args()
     main(args)
-
