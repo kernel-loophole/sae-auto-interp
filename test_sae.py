@@ -4,17 +4,13 @@ import orjson
 import torch
 from safetensors.torch import load_file  # Import for safetensors with PyTorch
 from simple_parsing import ArgumentParser
-
 from sae_auto_interp.clients import Local
 from sae_auto_interp.config import FeatureConfig, ExperimentConfig
 from sae_auto_interp.explainers import SimpleExplainer
 from sae_auto_interp.features import FeatureDataset, sample, pool_max_activation_windows
 from sae_auto_interp.pipeline import Pipe, Pipeline, process_wrapper
 from sae_auto_interp.scorers import FuzzingScorer
-from sae_auto_interp.utils import (
-    load_tokenized_data,
-    load_tokenizer,
-)
+from sae_auto_interp.utils import load_tokenized_data, load_tokenizer
 
 ### Set directories ###
 raw_features = "raw_features/gpt2"
@@ -22,30 +18,30 @@ explanation_dir = "results/gpt2_explanations"
 fuzz_dir = "results/gpt2_fuzz"
 autoencoder_weights_path = "sae.safetensors"  # Make sure this is correct
 
-### Define the SparseAutoencoder Model ###
+### Option 1: Modify the SparseAutoencoder Model to Match Checkpoint Dimensions ###
 class SparseAutoencoder(torch.nn.Module):
     def __init__(self):
         super(SparseAutoencoder, self).__init__()
 
-        # Encoder layers based on the architecture
+        # Encoder: Adjusted based on checkpoint dimensions
         self.encoder = torch.nn.Sequential(
             torch.nn.Linear(1024, 32768),  # Input size and layers
             torch.nn.ReLU(),
-            torch.nn.Linear(32768, 32768),
+            torch.nn.Linear(32768, 1024),  # Adjusted to 1024 based on saved model
             torch.nn.ReLU(),
-            torch.nn.Linear(32768, 32768)  # Latent space based on saved model
+            torch.nn.Linear(1024, 32768)   # Adjusted latent space
         )
-        
-        # Decoder layers based on the architecture
+
+        # Decoder: Adjusted to match the architecture of the saved model
         self.decoder = torch.nn.Sequential(
             torch.nn.Linear(32768, 32768),
             torch.nn.ReLU(),
-            torch.nn.Linear(32768, 1024),  # Adjusted to match the saved model
+            torch.nn.Linear(32768, 1024),  # Match saved model's decoder output
             torch.nn.ReLU(),
             torch.nn.Linear(1024, 1024),  # Final output layer to match input size
-            torch.nn.Sigmoid()          
+            torch.nn.Sigmoid()
         )
-    
+
     def forward(self, x):
         encoded = self.encoder(x)
         decoded = self.decoder(encoded)
@@ -54,27 +50,18 @@ class SparseAutoencoder(torch.nn.Module):
 # Initialize the autoencoder model
 autoencoder = SparseAutoencoder()
 
-### Load Weights from Safetensors and Map Keys ###
+### Option 2: Skip the Mismatched Weights When Loading ###
 def load_safetensors_weights(model, filepath):
     state_dict = load_file(filepath)
-    
+
     # Create a new state_dict with renamed keys for the model
     new_state_dict = {}
-    
     for key in state_dict.keys():
-        # Mapping safetensors keys to model's expected encoder and decoder keys
-        if "encoder" in key:
-            if "weight" in key:
-                new_state_dict["encoder.2.weight"] = state_dict[key] if "2" in key else state_dict[key]
-            elif "bias" in key:
-                new_state_dict["encoder.2.bias"] = state_dict[key] if "2" in key else state_dict[key]
-        elif "decoder" in key:
-            if "weight" in key:
-                new_state_dict["decoder.2.weight"] = state_dict[key] if "2" in key else state_dict[key]
-            elif "bias" in key:
-                new_state_dict["decoder.2.bias"] = state_dict[key] if "2" in key else state_dict[key]
+        # Mapping safetensors keys to model's expected keys
+        if key in model.state_dict() and state_dict[key].shape == model.state_dict()[key].shape:
+            new_state_dict[key] = state_dict[key]  # Only load matching shapes
     
-    # Loading state_dict into model
+    # Load the renamed state_dict into the model
     missing, unexpected = model.load_state_dict(new_state_dict, strict=False)
     print(f"Missing keys: {missing}")
     print(f"Unexpected keys: {unexpected}")
@@ -87,7 +74,6 @@ autoencoder.eval()
 
 ### Main Function to Run the Pipeline ###
 def main(args):
-
     ### Load tokens ###
     tokenizer = load_tokenizer("gpt2")
     tokens = load_tokenized_data(
@@ -118,7 +104,6 @@ def main(args):
     client = Local("casperhansen/llama-3-70b-instruct-awq")
 
     ### Build the Explainer Pipe ###
-    
     def preprocess(record):
         test = []
         extra_examples = []
@@ -152,7 +137,6 @@ def main(args):
     )
 
     ### Build the Scorer Pipe ###
-    
     def scorer_preprocess(result):
         record = result.record
         record.explanation = result.explanation
