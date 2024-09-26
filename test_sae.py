@@ -1,6 +1,5 @@
 import asyncio
 from functools import partial
-
 import orjson
 import torch
 from safetensors.torch import load_file  # Import for safetensors with PyTorch
@@ -21,31 +20,29 @@ from sae_auto_interp.utils import (
 raw_features = "raw_features/gpt2"
 explanation_dir = "results/gpt2_explanations"
 fuzz_dir = "results/gpt2_fuzz"
-
 autoencoder_weights_path = "sae.safetensors"  # Make sure this is correct
-
 
 ### Define the SparseAutoencoder Model ###
 class SparseAutoencoder(torch.nn.Module):
     def __init__(self):
         super(SparseAutoencoder, self).__init__()
 
-        # Adjusted Encoder dimensions based on the error message
+        # Adjust Encoder dimensions based on the error message
         self.encoder = torch.nn.Sequential(
-            torch.nn.Linear(1024, 32768),  # Adjust the input size and layers
+            torch.nn.Linear(1024, 32768),  # Input size and layers
             torch.nn.ReLU(),
             torch.nn.Linear(32768, 32768),
             torch.nn.ReLU(),
-            torch.nn.Linear(32768, 32768)   # Latent space based on saved model
+            torch.nn.Linear(32768, 32768)  # Latent space based on saved model
         )
         
-        # Adjusted Decoder dimensions based on the error message
+        # Adjust Decoder dimensions based on the error message
         self.decoder = torch.nn.Sequential(
             torch.nn.Linear(32768, 32768),
             torch.nn.ReLU(),
-            torch.nn.Linear(32768, 32768),
+            torch.nn.Linear(32768, 1024),  # Adjusted to match the saved model
             torch.nn.ReLU(),
-            torch.nn.Linear(32768, 1024),  
+            torch.nn.Linear(1024, 1024),  # Final output layer to match input size
             torch.nn.Sigmoid()          
         )
     
@@ -53,7 +50,6 @@ class SparseAutoencoder(torch.nn.Module):
         encoded = self.encoder(x)
         decoded = self.decoder(encoded)
         return decoded
-
 
 # Initialize the autoencoder model
 autoencoder = SparseAutoencoder()
@@ -70,9 +66,9 @@ def load_safetensors_weights(model, filepath):
             new_state_dict["encoder.0.weight"] = state_dict[key]
         elif key == "encoder.bias":
             new_state_dict["encoder.0.bias"] = state_dict[key]
-        elif key == "W_dec":
+        elif key == "decoder.weight":
             new_state_dict["decoder.0.weight"] = state_dict[key]
-        elif key == "b_dec":
+        elif key == "decoder.bias":
             new_state_dict["decoder.0.bias"] = state_dict[key]
         else:
             new_state_dict[key] = state_dict[key]
