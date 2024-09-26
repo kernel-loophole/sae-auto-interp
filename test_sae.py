@@ -27,7 +27,7 @@ class SparseAutoencoder(torch.nn.Module):
     def __init__(self):
         super(SparseAutoencoder, self).__init__()
 
-        # Adjust Encoder dimensions based on the error message
+        # Encoder layers based on the architecture
         self.encoder = torch.nn.Sequential(
             torch.nn.Linear(1024, 32768),  # Input size and layers
             torch.nn.ReLU(),
@@ -36,7 +36,7 @@ class SparseAutoencoder(torch.nn.Module):
             torch.nn.Linear(32768, 32768)  # Latent space based on saved model
         )
         
-        # Adjust Decoder dimensions based on the error message
+        # Decoder layers based on the architecture
         self.decoder = torch.nn.Sequential(
             torch.nn.Linear(32768, 32768),
             torch.nn.ReLU(),
@@ -60,21 +60,24 @@ def load_safetensors_weights(model, filepath):
     
     # Create a new state_dict with renamed keys for the model
     new_state_dict = {}
-    for key in state_dict.keys():
-        # Mapping safetensors keys to model's expected keys
-        if key == "encoder.weight":
-            new_state_dict["encoder.0.weight"] = state_dict[key]
-        elif key == "encoder.bias":
-            new_state_dict["encoder.0.bias"] = state_dict[key]
-        elif key == "decoder.weight":
-            new_state_dict["decoder.0.weight"] = state_dict[key]
-        elif key == "decoder.bias":
-            new_state_dict["decoder.0.bias"] = state_dict[key]
-        else:
-            new_state_dict[key] = state_dict[key]
     
-    # Load the renamed state_dict into the model
-    model.load_state_dict(new_state_dict)
+    for key in state_dict.keys():
+        # Mapping safetensors keys to model's expected encoder and decoder keys
+        if "encoder" in key:
+            if "weight" in key:
+                new_state_dict["encoder.2.weight"] = state_dict[key] if "2" in key else state_dict[key]
+            elif "bias" in key:
+                new_state_dict["encoder.2.bias"] = state_dict[key] if "2" in key else state_dict[key]
+        elif "decoder" in key:
+            if "weight" in key:
+                new_state_dict["decoder.2.weight"] = state_dict[key] if "2" in key else state_dict[key]
+            elif "bias" in key:
+                new_state_dict["decoder.2.bias"] = state_dict[key] if "2" in key else state_dict[key]
+    
+    # Loading state_dict into model
+    missing, unexpected = model.load_state_dict(new_state_dict, strict=False)
+    print(f"Missing keys: {missing}")
+    print(f"Unexpected keys: {unexpected}")
 
 # Load the weights into the autoencoder model
 load_safetensors_weights(autoencoder, autoencoder_weights_path)
