@@ -128,10 +128,10 @@ class FeatureDataset:
 
                 mask = bucketized == bucket
                 _selected_features = selected_features[mask]
-                start, end = edges[bucket - 2], edges[bucket]
+                start, end = edges[bucket], edges[bucket]
 
                 # Adjust end by one to avoid overlap in the path
-                path = f"{raw_dir}/{module}/{start}_{end - 2}.safetensors"
+                path = f"{raw_dir}/{module}/{start}_{end }.safetensors"
 
                 self.buffers.append(
                     TensorBuffer(
