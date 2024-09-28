@@ -30,23 +30,23 @@ class SparseAutoencoder(torch.nn.Module):
     def __init__(self):
         super(SparseAutoencoder, self).__init__()
 
-        # Encoder dimensions based on the error message
+        # Adjusted Encoder dimensions based on the error message
         self.encoder = torch.nn.Sequential(
             torch.nn.Linear(1024, 32768),  # Adjust the input size and layers
             torch.nn.ReLU(),
-            torch.nn.Linear(32768, 32768),
+            torch.nn.Linear(32768, 1024),  # Bottleneck at 1024 as per checkpoint
             torch.nn.ReLU(),
-            torch.nn.Linear(32768, 32768)   # Latent space based on saved model
+            torch.nn.Linear(1024, 1024)   # Latent space based on saved model
         )
         
-        # Decoder dimensions adjusted to match the checkpoint
+        # Adjusted Decoder dimensions to match the weight sizes in the checkpoint
         self.decoder = torch.nn.Sequential(
-            torch.nn.Linear(32768, 32768),  # Use 32768 as both input and output size
+            torch.nn.Linear(1024, 32768),  # Match the size from the saved checkpoint
             torch.nn.ReLU(),
-            torch.nn.Linear(32768, 1024),  # Match the checkpoint's shape
+            torch.nn.Linear(32768, 1024),  
             torch.nn.Sigmoid()          
         )
-
+    
     def forward(self, x):
         encoded = self.encoder(x)
         decoded = self.decoder(encoded)
