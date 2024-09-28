@@ -16,8 +16,8 @@ from sae_auto_interp.utils import (
     load_tokenizer,
 )
 
-### Set directories ###
 
+### Set directories ###
 raw_features = "raw_features/gpt2"
 explanation_dir = "results/gpt2_explanations"
 fuzz_dir = "results/gpt2_fuzz"
@@ -54,11 +54,9 @@ def main(args):
     )
 
     ### Load client ###
-
     client = Local("casperhansen/llama-3-70b-instruct-awq")
 
     ### Build Explainer pipe ###
-
     def preprocess(record):
         test = []
         extra_examples = []
@@ -73,7 +71,6 @@ def main(args):
         return record
 
     def explainer_postprocess(result):
-        
         with open(f"{explanation_dir}/{result.record.feature}.txt", "wb") as f:
             f.write(orjson.dumps(result.explanation))
 
@@ -92,7 +89,6 @@ def main(args):
     )
 
     ### Build Scorer pipe ###
-
     def scorer_preprocess(result):
         record = result.record
         record.explanation = result.explanation
@@ -118,7 +114,6 @@ def main(args):
     )
 
     ### Build the pipeline ###
-
     pipeline = Pipeline(
         loader,
         explainer_pipe,
