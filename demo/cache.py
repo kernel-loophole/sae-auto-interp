@@ -8,8 +8,8 @@ from sae_auto_interp.features import FeatureCache
 from sae_auto_interp.utils import load_tokenized_data
 
 
-WEIGHT_PATH = "weights/gpt2_128k"
-SAVE_DIR = "/share/u/caden/sae-auto-interp/raw_features/new_stuff"
+WEIGHT_PATH = "sae.safetensors"
+SAVE_DIR = "/raw_features/new_stuff"
 
 
 def main(cfg: CacheConfig):
